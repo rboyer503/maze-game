@@ -60,7 +60,7 @@ void MazeServer::broadcast(const GameMessage & msg)
 				std::cerr << "WARNING: MazeServer::broadcast [Weak pointer lock failure]" << std::endl;
 			}
         }
-        catch (const std::bad_weak_ptr & b)
+        catch (const std::bad_weak_ptr &)
         {
             std::cerr << "WARNING: MazeServer::broadcast [Ignoring bad weak pointer]" << std::endl;
         }
