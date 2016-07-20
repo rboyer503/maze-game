@@ -1,101 +1,91 @@
-# Compiler flags...
-CPP_COMPILER = g++
-C_COMPILER = gcc
+# Adapted from http://make.mad-scientist.net/papers/advanced-auto-dependency-generation/.
 
-# Include paths...
-Debug_Include_Path=
-Release_Include_Path=
+# Initialize variables.
+CXXFLAGS := -std=c++11
+SYMBOLS := -D _LINUX -D GCC_BUILD
+LIB_NAME := MazeShared.a
+DEBUG_OBJDIR := x64/gccDebug
+RELEASE_OBJDIR := x64/gccRelease
+LIBRARIES := -Wl,--start-group -lboost_system -lboost_thread -lpthread -lncurses -Wl,--end-group
+BINARY_NAME := MazeClient
 
-# Library paths...
-Debug_Library_Path=
-Release_Library_Path=
 
-# Additional libraries...
-Debug_Libraries=-Wl,--start-group -lboost_system -lboost_thread -lpthread -lncurses -Wl,--end-group
-Debug_Libraries=-Wl,--start-group -lboost_system -lboost_thread -lncurses -Wl,--end-group
-Release_Libraries=-Wl,--start-group -lboost_system -lboost_thread -lpthread -lncurses -Wl,--end-group
+# Define top-level rules.
+.PHONY: all
+all:
+	@echo "Please specify 'debug' or 'release'."
 
-# Archives...
-Debug_Archives=../x64/gccDebug/MazeShared.a
-Release_Archives=../x64/gccRelease/MazeShared.a
+.PHONY: debug
+debug: CXXFLAGS += -g
+debug: DEPFLAGS = -MMD -MP -MF $(DEBUG_OBJDIR)/$*.Td
+debug: OBJDIR = $(DEBUG_OBJDIR)
+debug: ARCHIVES = ../$(DEBUG_OBJDIR)/$(LIB_NAME)
+debug: binary_debug
 
-# Preprocessor definitions...
-Debug_Preprocessor_Definitions=-D _LINUX -D GCC_BUILD -D _DEBUG -D _CONSOLE 
-Release_Preprocessor_Definitions=-D _LINUX -D GCC_BUILD -D NDEBUG -D _CONSOLE 
+.PHONY: release
+release: CXXFLAGS += -O2
+release: DEPFLAGS = -MMD -MP -MF $(RELEASE_OBJDIR)/$*.Td
+release: OBJDIR = $(RELEASE_OBJDIR)
+release: ARCHIVES = ../$(RELEASE_OBJDIR)/$(LIB_NAME)
+release: binary_release
 
-# Implictly linked object files...
-Debug_Implicitly_Linked_Objects=
-Release_Implicitly_Linked_Objects=
 
-# Compiler flags...
-Debug_Compiler_Flags=-std=c++11 -O0 -g -pthread
-Release_Compiler_Flags=-std=c++11 -O2 
+# Define build rules.
+# Configure automatic dependency generation as side-effect of compilation.
+COMPILE.cpp = $(CXX) $(CXXFLAGS) $(DEPFLAGS) $(SYMBOLS) -c
+POSTCOMPILE = mv -f $(OBJDIR)/$*.Td $(OBJDIR)/$*.d
 
-# Builds all configurations for this project...
-.PHONY: build_all_configurations
-build_all_configurations: Debug Release 
+$(DEBUG_OBJDIR)/%.o: %.cpp
+$(DEBUG_OBJDIR)/%.o: %.cpp $(DEBUG_OBJDIR)/%.d
+	$(COMPILE.cpp) $< -o $@
+	$(POSTCOMPILE)
 
-# Builds the Debug configuration...
-.PHONY: Debug
-Debug: create_folders x64/gccDebug/ClientManager.o x64/gccDebug/LinuxTerminal.o x64/gccDebug/MazeClient.o
-	g++ -pthread x64/gccDebug/ClientManager.o x64/gccDebug/LinuxTerminal.o x64/gccDebug/MazeClient.o $(Debug_Archives) $(Debug_Library_Path) $(Debug_Libraries) -Wl,-rpath=/usr/local/lib -o ../x64/gccDebug/MazeClient
+$(DEBUG_OBJDIR)/%.d: ;
+.PRECIOUS: $(DEBUG_OBJDIR)/%.d
 
-# Compiles file ClientManager.cpp for the Debug configuration...
--include x64/gccDebug/ClientManager.d
-x64/gccDebug/ClientManager.o: ClientManager.cpp
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -c ClientManager.cpp $(Debug_Include_Path) -o x64/gccDebug/ClientManager.o
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -MM ClientManager.cpp $(Debug_Include_Path) > x64/gccDebug/ClientManager.d
+$(RELEASE_OBJDIR)/%.o: %.cpp
+$(RELEASE_OBJDIR)/%.o: %.cpp $(RELEASE_OBJDIR)/%.d
+	$(COMPILE.cpp) $< -o $@
+	$(POSTCOMPILE)
 
-# Compiles file LinuxTerminal.cpp for the Debug configuration...
--include x64/gccDebug/LinuxTerminal.d
-x64/gccDebug/LinuxTerminal.o: LinuxTerminal.cpp
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -c LinuxTerminal.cpp $(Debug_Include_Path) -o x64/gccDebug/LinuxTerminal.o
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -MM LinuxTerminal.cpp $(Debug_Include_Path) > x64/gccDebug/LinuxTerminal.d
+$(RELEASE_OBJDIR)/%.d: ;
+.PRECIOUS: $(RELEASE_OBJDIR)/%.d
 
-# Compiles file MazeClient.cpp for the Debug configuration...
--include x64/gccDebug/MazeClient.d
-x64/gccDebug/MazeClient.o: MazeClient.cpp
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -c MazeClient.cpp $(Debug_Include_Path) -o x64/gccDebug/MazeClient.o
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -MM MazeClient.cpp $(Debug_Include_Path) > x64/gccDebug/MazeClient.d
 
-# Builds the Release configuration...
-.PHONY: Release
-Release: create_folders x64/gccRelease/ClientManager.o x64/gccRelease/LinuxTerminal.o x64/gccRelease/MazeClient.o
-	g++ x64/gccRelease/ClientManager.o x64/gccRelease/LinuxTerminal.o x64/gccRelease/MazeClient.o $(Release_Archives) $(Release_Library_Path) $(Release_Libraries) -Wl,-rpath=/usr/local/lib -o ../x64/gccRelease/MazeClient
+# Define sources and objects.
+SOURCES := $(shell find . -type f -name '*.cpp' -not -name 'Win*')
+DEBUG_OBJECTS = $(patsubst ./%,$(DEBUG_OBJDIR)/%,$(SOURCES:.cpp=.o))
+RELEASE_OBJECTS = $(patsubst ./%,$(RELEASE_OBJDIR)/%,$(SOURCES:.cpp=.o))
 
-# Compiles file ClientManager.cpp for the Release configuration...
--include x64/gccRelease/ClientManager.d
-x64/gccRelease/ClientManager.o: ClientManager.cpp
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -c ClientManager.cpp $(Release_Include_Path) -o x64/gccRelease/ClientManager.o
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -MM ClientManager.cpp $(Release_Include_Path) > x64/gccRelease/ClientManager.d
 
-# Compiles file LinuxTerminal.cpp for the Release configuration...
--include x64/gccRelease/LinuxTerminal.d
-x64/gccRelease/LinuxTerminal.o: LinuxTerminal.cpp
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -c LinuxTerminal.cpp $(Release_Include_Path) -o x64/gccRelease/LinuxTerminal.o
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -MM LinuxTerminal.cpp $(Release_Include_Path) > x64/gccRelease/LinuxTerminal.d
+# Define rules.
+.PHONY: binary_debug
+binary_debug: make_directories $(DEBUG_OBJECTS)
+	@echo "[Building debug binary]"
+	$(CXX) $(DEBUG_OBJECTS) $(ARCHIVES) $(LIBRARIES) -Wl,-rpath=/usr/local/lib -o ../$(DEBUG_OBJDIR)/$(BINARY_NAME)
 
-# Compiles file MazeClient.cpp for the Release configuration...
--include x64/gccRelease/MazeClient.d
-x64/gccRelease/MazeClient.o: MazeClient.cpp
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -c MazeClient.cpp $(Release_Include_Path) -o x64/gccRelease/MazeClient.o
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -MM MazeClient.cpp $(Release_Include_Path) > x64/gccRelease/MazeClient.d
+.PHONY: binary_release
+binary_release: make_directories $(RELEASE_OBJECTS)
+	@echo "[Building release binary]"
+	$(CXX) $(RELEASE_OBJECTS) $(ARCHIVES) $(LIBRARIES) -Wl,-rpath=/usr/local/lib -o ../$(RELEASE_OBJDIR)/$(BINARY_NAME)
 
-# Creates the intermediate and output folders for each configuration...
-.PHONY: create_folders
-create_folders:
-	mkdir -p x64/gccDebug
-	mkdir -p ../x64/gccDebug
-	mkdir -p x64/gccRelease
-	mkdir -p ../x64/gccRelease
+.PHONY: make_directories
+make_directories:
+	@echo "[Creating directories]"
+	@mkdir -p $(OBJDIR)
+	@mkdir -p ../$(OBJDIR)
 
-# Cleans intermediate and output files (objects, libraries, executables)...
 .PHONY: clean
 clean:
-	rm -f x64/gccDebug/*.o
-	rm -f x64/gccDebug/*.d
-	rm -f ../x64/gccDebug/MazeClient
-	rm -f x64/gccRelease/*.o
-	rm -f x64/gccRelease/*.d
-	rm -f ../x64/gccRelease/MazeClient
+	@echo "[Cleaning debug and release]"
+	@rm -f $(DEBUG_OBJDIR)/*.o
+	@rm -f $(DEBUG_OBJDIR)/*.d
+	@rm -f ../$(DEBUG_OBJDIR)/$(BINARY_NAME)
+	@rm -f $(RELEASE_OBJDIR)/*.o
+	@rm -f $(RELEASE_OBJDIR)/*.d
+	@rm -f ../$(RELEASE_OBJDIR)/$(BINARY_NAME)
 
+
+# Include existing dependency files - keep at end of makefile.	
+-include $(patsubst %,$(DEBUG_OBJDIR)/%.d,$(basename $(SOURCES)))
+-include $(patsubst %,$(RELEASE_OBJDIR)/%.d,$(basename $(SOURCES)))

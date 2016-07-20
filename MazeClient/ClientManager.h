@@ -48,9 +48,13 @@ public:
 
 	void updateState(const Player & new_state)
 	{
-		curr_index = (curr_index + 1) % 2;
+		if (!updated_)
+		{
+			updated_ = true;
+			curr_index = (curr_index + 1) % 2;
+		}
+
 		states_[curr_index] = new_state;
-		updated_ = true;
 		changed_level_ = (states_[0].getPosition().z != states_[1].getPosition().z);
 	}
 };

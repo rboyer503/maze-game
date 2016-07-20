@@ -1,84 +1,87 @@
-# Compiler flags...
-CPP_COMPILER = g++
-C_COMPILER = gcc
+# Adapted from http://make.mad-scientist.net/papers/advanced-auto-dependency-generation/.
 
-# Include paths...
-Debug_Include_Path=
-Release_Include_Path=
+# Initialize variables.
+CXXFLAGS := -std=c++11
+SYMBOLS := -D _LINUX -D GCC_BUILD
+LIB_NAME := MazeShared.a
+DEBUG_OBJDIR := x64/gccDebug
+RELEASE_OBJDIR := x64/gccRelease
 
-# Library paths...
-Debug_Library_Path=
-Release_Library_Path=
 
-# Additional libraries...
-Debug_Libraries=
-Release_Libraries=
+# Define top-level rules.
+.PHONY: all
+all:
+	@echo "Please specify 'debug' or 'release'."
 
-# Preprocessor definitions...
-Debug_Preprocessor_Definitions=-D _LINUX -D GCC_BUILD 
-Release_Preprocessor_Definitions=-D _LINUX -D GCC_BUILD 
+.PHONY: debug
+debug: CXXFLAGS += -g
+debug: DEPFLAGS = -MMD -MP -MF $(DEBUG_OBJDIR)/$*.Td
+debug: OBJDIR = $(DEBUG_OBJDIR)
+debug: library_debug
 
-# Implictly linked object files...
-Debug_Implicitly_Linked_Objects=
-Release_Implicitly_Linked_Objects=
+.PHONY: release
+release: CXXFLAGS += -O2
+release: DEPFLAGS = -MMD -MP -MF $(RELEASE_OBJDIR)/$*.Td
+release: OBJDIR = $(RELEASE_OBJDIR)
+release: library_release
 
-# Compiler flags...
-Debug_Compiler_Flags=-std=c++11 -O0 
-Release_Compiler_Flags=-std=c++11 -O2 -g 
 
-# Builds all configurations for this project...
-.PHONY: build_all_configurations
-build_all_configurations: Debug Release 
+# Define build rules.
+# Configure automatic dependency generation as side-effect of compilation.
+COMPILE.cpp = $(CXX) $(CXXFLAGS) $(DEPFLAGS) $(SYMBOLS) -c
+POSTCOMPILE = mv -f $(OBJDIR)/$*.Td $(OBJDIR)/$*.d
 
-# Builds the Debug configuration...
-.PHONY: Debug
-Debug: create_folders x64/gccDebug/GameData.o x64/gccDebug/GameMessage.o 
-	ar rvs ../x64/gccDebug/MazeShared.a x64/gccDebug/GameData.o x64/gccDebug/GameMessage.o
+$(DEBUG_OBJDIR)/%.o: %.cpp
+$(DEBUG_OBJDIR)/%.o: %.cpp $(DEBUG_OBJDIR)/%.d
+	$(COMPILE.cpp) $< -o $@
+	$(POSTCOMPILE)
 
-# Compiles file GameData.cpp for the Debug configuration...
--include x64/gccDebug/GameData.d
-x64/gccDebug/GameData.o: GameData.cpp
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -c GameData.cpp $(Debug_Include_Path) -o x64/gccDebug/GameData.o
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -MM GameData.cpp $(Debug_Include_Path) > x64/gccDebug/GameData.d
+$(DEBUG_OBJDIR)/%.d: ;
+.PRECIOUS: $(DEBUG_OBJDIR)/%.d
 
-# Compiles file GameMessage.cpp for the Debug configuration...
--include x64/gccDebug/GameMessage.d
-x64/gccDebug/GameMessage.o: GameMessage.cpp
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -c GameMessage.cpp $(Debug_Include_Path) -o x64/gccDebug/GameMessage.o
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -MM GameMessage.cpp $(Debug_Include_Path) > x64/gccDebug/GameMessage.d
+$(RELEASE_OBJDIR)/%.o: %.cpp
+$(RELEASE_OBJDIR)/%.o: %.cpp $(RELEASE_OBJDIR)/%.d
+	$(COMPILE.cpp) $< -o $@
+	$(POSTCOMPILE)
 
-# Builds the Release configuration...
-.PHONY: Release
-Release: create_folders x64/gccRelease/GameData.o x64/gccRelease/GameMessage.o 
-	ar rvs ../x64/gccRelease/MazeShared.a x64/gccRelease/GameData.o x64/gccRelease/GameMessage.o
+$(RELEASE_OBJDIR)/%.d: ;
+.PRECIOUS: $(RELEASE_OBJDIR)/%.d
 
-# Compiles file GameData.cpp for the Release configuration...
--include x64/gccRelease/GameData.d
-x64/gccRelease/GameData.o: GameData.cpp
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -c GameData.cpp $(Release_Include_Path) -o x64/gccRelease/GameData.o
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -MM GameData.cpp $(Release_Include_Path) > x64/gccRelease/GameData.d
 
-# Compiles file GameMessage.cpp for the Release configuration...
--include x64/gccRelease/GameMessage.d
-x64/gccRelease/GameMessage.o: GameMessage.cpp
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -c GameMessage.cpp $(Release_Include_Path) -o x64/gccRelease/GameMessage.o
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -MM GameMessage.cpp $(Release_Include_Path) > x64/gccRelease/GameMessage.d
+# Define sources and objects.
+SOURCES := $(shell find . -type f -name '*.cpp')
+DEBUG_OBJECTS = $(patsubst ./%,$(DEBUG_OBJDIR)/%,$(SOURCES:.cpp=.o))
+RELEASE_OBJECTS = $(patsubst ./%,$(RELEASE_OBJDIR)/%,$(SOURCES:.cpp=.o))
 
-# Creates the intermediate and output folders for each configuration...
-.PHONY: create_folders
-create_folders:
-	mkdir -p x64/gccDebug
-	mkdir -p ../x64/gccDebug
-	mkdir -p x64/gccRelease
-	mkdir -p ../x64/gccRelease
 
-# Cleans intermediate and output files (objects, libraries, executables)...
+# Define rules.
+.PHONY: library_debug
+library_debug: make_directories $(DEBUG_OBJECTS)
+	@echo "[Building debug library]"
+	ar rvs ../$(DEBUG_OBJDIR)/$(LIB_NAME) $(DEBUG_OBJECTS)
+
+.PHONY: library_release
+library_release: make_directories $(RELEASE_OBJECTS)
+	@echo "[Building release library]"
+	ar rvs ../$(RELEASE_OBJDIR)/$(LIB_NAME) $(RELEASE_OBJECTS)
+
+.PHONY: make_directories
+make_directories:
+	@echo "[Creating directories]"
+	@mkdir -p $(OBJDIR)
+	@mkdir -p ../$(OBJDIR)
+
 .PHONY: clean
 clean:
-	rm -f x64/gccDebug/*.o
-	rm -f x64/gccDebug/*.d
-	rm -f ../x64/gccDebug/*.a
-	rm -f x64/gccRelease/*.o
-	rm -f x64/gccRelease/*.d
-	rm -f ../x64/gccRelease/*.a
+	@echo "[Cleaning debug and release]"
+	@rm -f $(DEBUG_OBJDIR)/*.o
+	@rm -f $(DEBUG_OBJDIR)/*.d
+	@rm -f ../$(DEBUG_OBJDIR)/*.a
+	@rm -f $(RELEASE_OBJDIR)/*.o
+	@rm -f $(RELEASE_OBJDIR)/*.d
+	@rm -f ../$(RELEASE_OBJDIR)/*.a
 
+
+# Include existing dependency files - keep at end of makefile.	
+-include $(patsubst %,$(DEBUG_OBJDIR)/%.d,$(basename $(SOURCES)))
+-include $(patsubst %,$(RELEASE_OBJDIR)/%.d,$(basename $(SOURCES)))

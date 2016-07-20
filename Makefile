@@ -1,23 +1,38 @@
-# Builds all the projects in the solution...
-.PHONY: all_projects
-all_projects: MazeServer MazeClient MazeShared 
+# Define top-level rules.
+.PHONY: all
+all:
+	@echo "Please specify 'debug' or 'release'."
+	
+.PHONY: debug
+debug: VARIANT = debug
+debug: MazeServer MazeClient MazeShared 
 
-# Builds project 'MazeServer'...
+.PHONY: release
+release: VARIANT = release
+release: MazeServer MazeClient MazeShared
+
+
+# Define project rules.
 .PHONY: MazeServer
 MazeServer: MazeShared
-	make --directory="MazeServer/" --file=MazeServer.makefile
+	@echo
+	@echo "[Building MazeServer Project...]"
+	make --directory="MazeServer/" --file=MazeServer.makefile $(VARIANT)
 
-# Builds project 'MazeClient'...
 .PHONY: MazeClient
 MazeClient: MazeShared
-	make --directory="MazeClient/" --file=MazeClient.makefile
+	@echo
+	@echo "[Building MazeClient Project...]"
+	make --directory="MazeClient/" --file=MazeClient.makefile $(VARIANT)
 
-# Builds project 'MazeShared'...
 .PHONY: MazeShared
-MazeShared: 
-	make --directory="MazeShared/" --file=MazeShared.makefile
+MazeShared:
+	@echo
+	@echo "[Building MazeShared Project...]" 
+	make --directory="MazeShared/" --file=MazeShared.makefile $(VARIANT)
 
-# Cleans all projects...
+
+# Clean all projects.
 .PHONY: clean
 clean:
 	make --directory="MazeServer/" --file=MazeServer.makefile clean

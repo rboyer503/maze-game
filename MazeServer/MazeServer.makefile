@@ -1,124 +1,91 @@
-# Compiler flags...
-CPP_COMPILER = g++
-C_COMPILER = gcc
+# Adapted from http://make.mad-scientist.net/papers/advanced-auto-dependency-generation/.
 
-# Include paths...
-Debug_Include_Path=
-Release_Include_Path=
+# Initialize variables.
+CXXFLAGS := -std=c++11
+SYMBOLS := -D _LINUX -D GCC_BUILD
+LIB_NAME := MazeShared.a
+DEBUG_OBJDIR := x64/gccDebug
+RELEASE_OBJDIR := x64/gccRelease
+LIBRARIES := -Wl,--start-group -lboost_system -lboost_thread -lpthread -Wl,--end-group
+BINARY_NAME := MazeServer
 
-# Library paths...
-Debug_Library_Path=
-Release_Library_Path=
 
-# Additional libraries...
-Debug_Libraries=-Wl,--start-group -lboost_system -lboost_thread -lpthread -Wl,--end-group
-Release_Libraries=-Wl,--start-group -lboost_system -lboost_thread -lpthread -Wl,--end-group
+# Define top-level rules.
+.PHONY: all
+all:
+	@echo "Please specify 'debug' or 'release'."
 
-# Archives...
-Debug_Archives=../x64/gccDebug/MazeShared.a
-Release_Archives=../x64/gccRelease/MazeShared.a
+.PHONY: debug
+debug: CXXFLAGS += -g
+debug: DEPFLAGS = -MMD -MP -MF $(DEBUG_OBJDIR)/$*.Td
+debug: OBJDIR = $(DEBUG_OBJDIR)
+debug: ARCHIVES = ../$(DEBUG_OBJDIR)/$(LIB_NAME)
+debug: binary_debug
 
-# Preprocessor definitions...
-Debug_Preprocessor_Definitions=-D _LINUX -D GCC_BUILD -D _DEBUG -D _CONSOLE 
-Release_Preprocessor_Definitions=-D _LINUX -D GCC_BUILD -D NDEBUG -D _CONSOLE 
+.PHONY: release
+release: CXXFLAGS += -O2
+release: DEPFLAGS = -MMD -MP -MF $(RELEASE_OBJDIR)/$*.Td
+release: OBJDIR = $(RELEASE_OBJDIR)
+release: ARCHIVES = ../$(RELEASE_OBJDIR)/$(LIB_NAME)
+release: binary_release
 
-# Implictly linked object files...
-Debug_Implicitly_Linked_Objects=
-Release_Implicitly_Linked_Objects=
 
-# Compiler flags...
-Debug_Compiler_Flags=-std=c++11 -O0 -g 
-Release_Compiler_Flags=-std=c++11 -O2 
+# Define build rules.
+# Configure automatic dependency generation as side-effect of compilation.
+COMPILE.cpp = $(CXX) $(CXXFLAGS) $(DEPFLAGS) $(SYMBOLS) -c
+POSTCOMPILE = mv -f $(OBJDIR)/$*.Td $(OBJDIR)/$*.d
 
-# Builds all configurations for this project...
-.PHONY: build_all_configurations
-build_all_configurations: Debug Release 
+$(DEBUG_OBJDIR)/%.o: %.cpp
+$(DEBUG_OBJDIR)/%.o: %.cpp $(DEBUG_OBJDIR)/%.d
+	$(COMPILE.cpp) $< -o $@
+	$(POSTCOMPILE)
 
-# Builds the Debug configuration...
-.PHONY: Debug
-Debug: create_folders x64/gccDebug/Maze.o x64/gccDebug/MazeManager.o x64/gccDebug/MazeServer.o x64/gccDebug/MazeSession.o x64/gccDebug/AIAgent.o
-	g++ x64/gccDebug/Maze.o x64/gccDebug/MazeManager.o x64/gccDebug/MazeServer.o x64/gccDebug/MazeSession.o x64/gccDebug/AIAgent.o $(Debug_Archives) $(Debug_Library_Path) $(Debug_Libraries) -Wl,-rpath=/usr/local/lib -o ../x64/gccDebug/MazeServer
+$(DEBUG_OBJDIR)/%.d: ;
+.PRECIOUS: $(DEBUG_OBJDIR)/%.d
 
-# Compiles file Maze.cpp for the Debug configuration...
--include x64/gccDebug/Maze.d
-x64/gccDebug/Maze.o: Maze.cpp
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -c Maze.cpp $(Debug_Include_Path) -o x64/gccDebug/Maze.o
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -MM Maze.cpp $(Debug_Include_Path) > x64/gccDebug/Maze.d
+$(RELEASE_OBJDIR)/%.o: %.cpp
+$(RELEASE_OBJDIR)/%.o: %.cpp $(RELEASE_OBJDIR)/%.d
+	$(COMPILE.cpp) $< -o $@
+	$(POSTCOMPILE)
 
-# Compiles file MazeManager.cpp for the Debug configuration...
--include x64/gccDebug/MazeManager.d
-x64/gccDebug/MazeManager.o: MazeManager.cpp
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -c MazeManager.cpp $(Debug_Include_Path) -o x64/gccDebug/MazeManager.o
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -MM MazeManager.cpp $(Debug_Include_Path) > x64/gccDebug/MazeManager.d
+$(RELEASE_OBJDIR)/%.d: ;
+.PRECIOUS: $(RELEASE_OBJDIR)/%.d
 
-# Compiles file MazeServer.cpp for the Debug configuration...
--include x64/gccDebug/MazeServer.d
-x64/gccDebug/MazeServer.o: MazeServer.cpp
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -c MazeServer.cpp $(Debug_Include_Path) -o x64/gccDebug/MazeServer.o
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -MM MazeServer.cpp $(Debug_Include_Path) > x64/gccDebug/MazeServer.d
 
-# Compiles file MazeSession.cpp for the Debug configuration...
--include x64/gccDebug/MazeSession.d
-x64/gccDebug/MazeSession.o: MazeSession.cpp
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -c MazeSession.cpp $(Debug_Include_Path) -o x64/gccDebug/MazeSession.o
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -MM MazeSession.cpp $(Debug_Include_Path) > x64/gccDebug/MazeSession.d
+# Define sources and objects.
+SOURCES := $(shell find . -type f -name '*.cpp')
+DEBUG_OBJECTS = $(patsubst ./%,$(DEBUG_OBJDIR)/%,$(SOURCES:.cpp=.o))
+RELEASE_OBJECTS = $(patsubst ./%,$(RELEASE_OBJDIR)/%,$(SOURCES:.cpp=.o))
 
-# Compiles file AIAgent.cpp for the Debug configuration...
--include x64/gccDebug/AIAgent.d
-x64/gccDebug/AIAgent.o: AIAgent.cpp
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -c AIAgent.cpp $(Debug_Include_Path) -o x64/gccDebug/AIAgent.o
-	$(CPP_COMPILER) $(Debug_Preprocessor_Definitions) $(Debug_Compiler_Flags) -MM AIAgent.cpp $(Debug_Include_Path) > x64/gccDebug/AIAgent.d
 
-# Builds the Release configuration...
-.PHONY: Release
-Release: create_folders x64/gccRelease/Maze.o x64/gccRelease/MazeManager.o x64/gccRelease/MazeServer.o x64/gccRelease/MazeSession.o x64/gccRelease/AIAgent.o
-	g++ x64/gccRelease/Maze.o x64/gccRelease/MazeManager.o x64/gccRelease/MazeServer.o x64/gccRelease/MazeSession.o x64/gccRelease/AIAgent.o $(Release_Archives) $(Release_Library_Path) $(Release_Libraries) -Wl,-rpath=/usr/local/lib -o ../x64/gccRelease/MazeServer
+# Define rules.
+.PHONY: binary_debug
+binary_debug: make_directories $(DEBUG_OBJECTS)
+	@echo "[Building debug binary]"
+	$(CXX) $(DEBUG_OBJECTS) $(ARCHIVES) $(LIBRARIES) -Wl,-rpath=/usr/local/lib -o ../$(DEBUG_OBJDIR)/$(BINARY_NAME)
 
-# Compiles file Maze.cpp for the Release configuration...
--include x64/gccRelease/Maze.d
-x64/gccRelease/Maze.o: Maze.cpp
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -c Maze.cpp $(Release_Include_Path) -o x64/gccRelease/Maze.o
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -MM Maze.cpp $(Release_Include_Path) > x64/gccRelease/Maze.d
+.PHONY: binary_release
+binary_release: make_directories $(RELEASE_OBJECTS)
+	@echo "[Building release binary]"
+	$(CXX) $(RELEASE_OBJECTS) $(ARCHIVES) $(LIBRARIES) -Wl,-rpath=/usr/local/lib -o ../$(RELEASE_OBJDIR)/$(BINARY_NAME)
 
-# Compiles file MazeManager.cpp for the Release configuration...
--include x64/gccRelease/MazeManager.d
-x64/gccRelease/MazeManager.o: MazeManager.cpp
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -c MazeManager.cpp $(Release_Include_Path) -o x64/gccRelease/MazeManager.o
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -MM MazeManager.cpp $(Release_Include_Path) > x64/gccRelease/MazeManager.d
+.PHONY: make_directories
+make_directories:
+	@echo "[Creating directories]"
+	@mkdir -p $(OBJDIR)
+	@mkdir -p ../$(OBJDIR)
 
-# Compiles file MazeServer.cpp for the Release configuration...
--include x64/gccRelease/MazeServer.d
-x64/gccRelease/MazeServer.o: MazeServer.cpp
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -c MazeServer.cpp $(Release_Include_Path) -o x64/gccRelease/MazeServer.o
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -MM MazeServer.cpp $(Release_Include_Path) > x64/gccRelease/MazeServer.d
-
-# Compiles file MazeSession.cpp for the Release configuration...
--include x64/gccRelease/MazeSession.d
-x64/gccRelease/MazeSession.o: MazeSession.cpp
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -c MazeSession.cpp $(Release_Include_Path) -o x64/gccRelease/MazeSession.o
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -MM MazeSession.cpp $(Release_Include_Path) > x64/gccRelease/MazeSession.d
-
-# Compiles file AIAgent.cpp for the Release configuration...
--include x64/gccRelease/AIAgent.d
-x64/gccRelease/AIAgent.o: AIAgent.cpp
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -c AIAgent.cpp $(Release_Include_Path) -o x64/gccRelease/AIAgent.o
-	$(CPP_COMPILER) $(Release_Preprocessor_Definitions) $(Release_Compiler_Flags) -MM AIAgent.cpp $(Release_Include_Path) > x64/gccRelease/AIAgent.d
-
-# Creates the intermediate and output folders for each configuration...
-.PHONY: create_folders
-create_folders:
-	mkdir -p x64/gccDebug
-	mkdir -p ../x64/gccDebug
-	mkdir -p x64/gccRelease
-	mkdir -p ../x64/gccRelease
-
-# Cleans intermediate and output files (objects, libraries, executables)...
 .PHONY: clean
 clean:
-	rm -f x64/gccDebug/*.o
-	rm -f x64/gccDebug/*.d
-	rm -f ../x64/gccDebug/MazeServer
-	rm -f x64/gccRelease/*.o
-	rm -f x64/gccRelease/*.d
-	rm -f ../x64/gccRelease/MazeServer
+	@echo "[Cleaning debug and release]"
+	@rm -f $(DEBUG_OBJDIR)/*.o
+	@rm -f $(DEBUG_OBJDIR)/*.d
+	@rm -f ../$(DEBUG_OBJDIR)/$(BINARY_NAME)
+	@rm -f $(RELEASE_OBJDIR)/*.o
+	@rm -f $(RELEASE_OBJDIR)/*.d
+	@rm -f ../$(RELEASE_OBJDIR)/$(BINARY_NAME)
 
+
+# Include existing dependency files - keep at end of makefile.	
+-include $(patsubst %,$(DEBUG_OBJDIR)/%.d,$(basename $(SOURCES)))
+-include $(patsubst %,$(RELEASE_OBJDIR)/%.d,$(basename $(SOURCES)))
